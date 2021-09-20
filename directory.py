@@ -1,19 +1,16 @@
-from airflow.models import DAG
+rom airflow.models import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.utils.dates import days_ago
 from datetime import datetime, timedelta
 
-yesterday = datetime.datetime.combine(
-   datetime.datetime.today() - datetime.timedelta(1),
-   datetime.datetime.min.time())
 
 default_dag_args = {
      'owner': 'airflow',
-    'start_date': yesterday,
+    'start_date': datetime(2021, 9, 15),
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
-    'retry_delay': datetime.timedelta(minutes=5),
+    'retry_delay': timedelta(minutes=1),
 }
 
 dag = DAG(
