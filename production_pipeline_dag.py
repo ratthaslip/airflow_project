@@ -43,6 +43,7 @@ no_email_task = DummyOperator(task_id='no_email_task', dag=dag)
 def check_weekend(**kwargs):
     dt = datetime.strptime(kwargs['execution_date'],'%d-%m-%Y')
     #If dt.weekday() is 0-4, it's Mon-Fri. If 5-6, it's Sat/Sun
+    pprint(dt.weekday())
     if (dt.weekday() < 5):
         return 'email_report_task'
     else:
