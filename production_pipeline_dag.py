@@ -22,7 +22,7 @@ def process_data(**kwargs):
     pprint(kwargs)
     return 'processing data'
 
-python_task = PythonOperator(task_id='run_processing', 
+run_processing = PythonOperator(task_id='run_processing', 
                              python_callable=process_data,
                              provide_context=True,
                              dag=dag)
@@ -48,9 +48,9 @@ def check_weekend(**kwargs):
     else:
         return 'no_email_task'
     
-branch_task = BranchPythonOperator(task_id='check_if_weekend',
+check_if_weekend = BranchPythonOperator(task_id='check_if_weekend',
                                    python_callable=check_weekend,
                                    provide_context=True,
                                    dag=dag)
 
-python_task >> branch_task >> [email_report_task, no_email_task]
+run_processing >> check_if_weekend >> [email_report_task, no_email_task]
