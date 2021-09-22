@@ -32,7 +32,7 @@ email_subject="""
 """
 
 email_report_task=EmailOperator(task_id='email_report_task',
-              to='udom.ranok@gmail.com',
+              to='your.email@gmail.com',
               subject=email_subject,
               html_content='',
               params={'department':'Data subscription services'},
