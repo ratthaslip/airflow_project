@@ -25,9 +25,9 @@ with DAG('covid19_get_data',
     t1 = SimpleHttpOperator(
         task_id='get_covid19_report_today',
         method='GET',
-        http_conn_id='https_covid19_api',
-        endpoint='/api/Cases/today-cases-all',
-        headers={"Content-Type":"application/json"},
+        http_conn_id='',
+        endpoint='',
+        headers={""},
         dag=dag
     )
 
