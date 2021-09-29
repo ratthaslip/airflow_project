@@ -61,7 +61,7 @@ def save_data_into_db(**kwargs):
             new_recovered,
             total_recovered,
             update_date)
-        VALUES ('2021-09-28', 9489, 1581415, 1575535, 129, 16498, 12805, 1448425, '2021-09-28');
+        VALUES ('2021-09-29', 10414, 1591829, 10404, 1585939, 122, 16620, 1460005, '2021-09-28');
     """
 
    #val = (Txn_date, New_case, Total_case, Total_case_excludeabroad, New_death, Total_death,New_recovered, Total_recovered, Update_date)
