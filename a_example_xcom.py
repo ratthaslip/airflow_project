@@ -1,57 +1,66 @@
-from airflow.models import DAG
-from airflow.operators.dummy import DummyOperator
-from airflow.utils import timezone
-from airflow.decorators import task
+rom airflow import DAG
+from airflow.utils.dates import days_ago
+from airflow.operators.python_operator import PythonOperator
 
-DEFAULT_ARGS = {
-    "owner": "airflow",
-    "start_date": timezone.datetime(2023, 1, 16),
-    'schedule_interval': None,
+args = {
+    'owner': 'airflow',
+    'start_date': days_ago(2),
 }
+dag = DAG(
+    'a_example_xcom', 
+    schedule_interval="@once", 
+    default_args=args, 
+    tags=['example']
+)
 
-with DAG(
-    dag_id="a_example_xcom",
-    default_args=DEFAULT_ARGS,
-    tags=["test_xcom"],
-):
+value_1 = [1, 2, 3]
+value_2 = {'a': 'b'}
 
-    start = DummyOperator(task_id="start")
+def push(**kwargs):
+    """Pushes an XCom without a specific target"""
+    kwargs['ti'].xcom_push(key='value from pusher 1', value=value_1)
 
-    @task
-    def push_by_returning(ti=None):
-        value_1 = {"a": "b"}
-        return value_1
+def push_by_returning(**kwargs):
+    """Pushes an XCom without a specific target, just by returning it"""
+    return value_2
 
-    @task
-    def push(ti=None):
-        value_2 = [1, 2, 3]
-        ti.xcom_push(
-            key="push_key", 
-            value=value_2
-        )
+def puller(**kwargs):
+    """Pull all previously pushed XComs and check if the pushed values match the pulled values."""
+    ti = kwargs['ti']
 
-    @task
-    def pull_data_from_xcom(ti=None):
-        pulled_value_1 = ti.xcom_pull(
-            task_ids="push_by_returning"
-        )
+    # get value_1
+    pulled_value_1 = ti.xcom_pull(key=None, task_ids='push')
+    if pulled_value_1 != value_1:
+        raise ValueError('The two values differ {pulled_value_1} and {value_1}')
 
-        pulled_value_2 = ti.xcom_pull(
-            task_ids="push", key="push_key"
-        )
+    # get value_2
+    pulled_value_2 = ti.xcom_pull(task_ids='push_by_returning')
+    if pulled_value_2 != value_2:
+        raise ValueError('The two values differ {pulled_value_2} and {value_2}')
 
-        pulled_value_3 = ti.xcom_pull(
-            task_ids="push",
-        )
-        print(f"pulled_value_1 : {pulled_value_1}")
-        print(f"pulled_value_2 : {pulled_value_2}")
-        print(f"pulled_value_3 : {pulled_value_3}")
+    # get both value_1 and value_2
+    pulled_value_1, pulled_value_2 = ti.xcom_pull(key=None, task_ids=['push', 'push_by_returning'])
+    if pulled_value_1 != value_1:
+        #notice this was changed to match older version of python. (without the f)
+        raise ValueError('The two values differ {pulled_value_1} and {value_1}')
+    if pulled_value_2 != value_2:
+         #notice this was changed to match older version of python. (without the f)
+        raise ValueError('The two values differ {pulled_value_2} and {value_2}')
 
-    end = DummyOperator(task_id="end")
-
-    push_task = push()
-    push_by_returning_task = push_by_returning()
-
-    pull_data_from_xcom_task = pull_data_from_xcom()
-
-    start >> [push_task, push_by_returning_task] >> pull_data_from_xcom_task >> end
+push1 = PythonOperator(
+    task_id='push',provide_context=True, #provide context is for getting the TI (task instance ) parameters
+    dag=dag,
+    python_callable=push,
+)
+push2 = PythonOperator(
+    task_id='push_by_returning',
+    dag=dag,
+    python_callable=push_by_returning,
+)
+pull = PythonOperator(
+    task_id='puller',provide_context=True,#provide context is for getting the TI (task instance ) parameters
+    dag=dag,
+    python_callable=puller,
+)
+# set of operators, push1,push2 are upstream to pull
+pull << [push1, push2]
