@@ -1,55 +1,48 @@
-import requests
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
 import csv
+from datetime import datetime, timedelta
 from pathlib import Path
 
+import requests
 from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.bash_operator import BashOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
+from bs4 import BeautifulSoup
 
-# Define cvs file path
+# # Define cvs file path
 csv_path = "/opt/airflow/dags/output"
 
-# List of words that script should avoid to write onto csv.
-avoid_words = ["My Local",
-               "Editor's Blog",
-               "Connect with CBC",
-               "Contact CBC",
-               "Services & Info",
-               "Accessibility"]
-
-# Define URL where scrape from.
-cbc_url = "https://www.cbc.ca/news/canada"
+# # Define URL where scrape from.
+url = "https://stackpython.co/courses"
 
 # Default args used when create a new dag
 default_args = {
-    'owner': 'airflow',
-    'start_date': datetime(2019, 7, 18),
+    "owner": "airflow",
+    "start_date": datetime(2019, 7, 18),
     # 'end_date': datetime(2018, 12, 30),
-    'depends_on_past': False,
-    'email': ['kohei.suzuki808@gmail.com'],
-    'email_on_failure': False,
-    'email_on_retry': False,
+    "depends_on_past": False,
+    # 'email': ['kohei.suzuki808@gmail.com'],
+    "email_on_failure": False,
+    "email_on_retry": False,
     # If a task fails, retry it once after waiting
     # at least 5 minutes
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-    'schedule_interval': '@once',
+    "retries": 1,
+    "retry_delay": timedelta(minutes=5),
+    "schedule_interval": "@once",
 }
 
 
 # Create a new dag
 dag = DAG(
-    'webscraping',
+    "webscraping3",
     default_args=default_args,
-    description='airflow webscraping',
+    description="airflow webscraping",
     # Continue to run DAG once per day
     schedule_interval=timedelta(days=1),
+    # schedule=timedelta(days=1),
 )
 
 
-# Define task1
+# # Define task1
 echo_start = BashOperator(
     task_id="echo_start",
     bash_command="echo Start scraping.",
@@ -57,55 +50,34 @@ echo_start = BashOperator(
 )
 
 
-def get_news_from_cbc(url):
-    """
-    Scrape headlines of news on https://www.cbc.ca/news/canada.
-    Then write them into a csv file with additional information
-    such as time and url.
+def get_course_list(url):
+    res = requests.get(url)
+    res.encoding = "utf-8"
+    soup = BeautifulSoup(res.text, "html.parser")
 
-    Parameters
-    ----------
-    url: str
-    A URL to a website where I want to scrape from
+    datetime_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    Returns
-    -------
-    current_top_news: list
-    This is a list, and each element is also a list that contains
-    1. headline
-    2. source url
-    3. date and time
+    courses = soup.find_all("h2")
+    course_list = []
+    for course in courses:
 
-    Example:
-    [["headline1", "url", datetime],
-     ["headline2", "url", datetime]]
+        # Create new variable --> obj to store
+        # only course name getting rid of unwanted tags
+        obj = course.string
 
-    Where "headline" and "url" are string, datetime is datetime object.
-    """
-    response = requests.get(url)
-    response.encoding = response.apparent_encoding
-
-    bs = BeautifulSoup(response.text, 'html.parser')
-
-    datetime_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    current_top_news = []
-    for i in bs.select("h3"):
-        if not i.getText() in avoid_words:
-            print(i.getText())  # Print each headline.
-            current_top_news.append(list((i.getText(), url, datetime_now)))
-        else:
-            continue
-
-    return current_top_news
+        # Append each course into a course_list variable
+        course_list.append(obj)
+    course_list = [x.strip() for x in course_list if x is not None]
+    return course_list
 
 
-# Define task2
+# # Define task2
 scraping = PythonOperator(
     task_id="scraping",
-    python_callable=get_news_from_cbc,
-    op_kwargs={'url': cbc_url},
-    dag=dag)
+    python_callable=get_course_list,
+    op_kwargs={"url": url},
+    dag=dag,
+)
 
 
 def write_csv(**kwargs):
@@ -121,24 +93,22 @@ def write_csv(**kwargs):
     """
 
     # Xcoms to get the list
-    ti = kwargs['ti']
-    current_top_news = ti.xcom_pull(task_ids='scraping')
-
+    ti = kwargs["ti"]
+    course_list = ti.xcom_pull(task_ids="scraping")
     try:
-        with open('{}/test_file.csv'.format(csv_path), "w") as file:
-            writer = csv.writer(file, lineterminator='\n')
-            writer.writerows(current_top_news)
+        print(csv_path)
+        with open("{}/test_file.csv".format(csv_path), "w") as file:
+            writer = csv.writer(file, lineterminator="\n")
+            writer.writerow(["title"])
+            for row in course_list:
+                writer.writerow([row])
         return True
     except OSError as e:
         print(e)
         return False
 
 
-writing_csv = PythonOperator(
-    task_id="writing_csv",
-    python_callable=write_csv,
-    provide_context=True,
-    dag=dag)
+writing_csv = PythonOperator(task_id="writing_csv", python_callable=write_csv, dag=dag)
 
 
 def confirmation(**kwargs):
@@ -148,8 +118,8 @@ def confirmation(**kwargs):
     """
 
     # Xcoms to get status which is the return value of write_csv().
-    ti = kwargs['ti']
-    status = ti.xcom_pull(task_ids='writing_csv')
+    ti = kwargs["ti"]
+    status = ti.xcom_pull(task_ids="writing_csv")
 
     if status:
         print("Done!!!!!!")
@@ -158,10 +128,7 @@ def confirmation(**kwargs):
 
 
 confirmation = PythonOperator(
-    task_id="confirmation",
-    python_callable=confirmation,
-    provide_context=True,
-    dag=dag
+    task_id="confirmation", python_callable=confirmation, dag=dag
 )
 
 
